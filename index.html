@@ -71,8 +71,19 @@ async function callAPI(prompt,max){
   const d=await res.json();
   const raw=(d.content||[]).map(c=>c.text||"").join("");
   const s=raw.indexOf("{"),e=raw.lastIndexOf("}");
-  if(s<0||e<0)throw new Error("No JSON");
-  return JSON.parse(raw.slice(s,e+1));
+  if(s<0||e<0)throw new Error("No JSON in response");
+  const slice=raw.slice(s,e+1);
+  try{return JSON.parse(slice);}
+  catch(err){
+    // Sanitize without regex: replace control chars char by char
+    let safe="";
+    for(let i=0;i<slice.length;i++){
+      const code=slice.charCodeAt(i);
+      if(code===9||code===10||code===13||(code>=32&&code!==127)){safe+=slice[i];}
+      else{safe+=" ";}
+    }
+    return JSON.parse(safe);
+  }
 }
 function brief(acc){
   let b=`MARCA: ${acc.name}\nINDUSTRIA: ${acc.industry}\nPAIS: ${acc.country||"No especificado"}\nDESCRIPCION: ${acc.description||"Empresa destacada"}\nPUBLICO: ${acc.audience||"Adultos 25-45"}\nTONO: ${acc.tone} (positivo, afirmativo, motivador)\nNOTAS: ${acc.brandNotes||"Ninguna"}\n`;
@@ -610,7 +621,7 @@ async function doGenerate(cfg){
   prompt+="FORMATOS: "+JSON.stringify(cfg.formatMix)+"\nREGLAS: 1 BRANDING (isBranding:true), no repetir consecutivo, dayNum 1-28, tono positivo, especifico para "+acc.name+".\n";
   prompt+='JSON sin markdown: {"insights":"texto o null","efemerides":["e1"],"pieces":[{"id":1,"format":"Reel","day":"Lunes","dayNum":5,"postingTime":"18:00","theme":"titulo","angle":"angulo","category":"Educativo","seasonalTie":"fecha o null","slides":null,"isBranding":false}]}';
   try{
-    const parsed=await callAPI(prompt,3500);
+    const parsed=await callAPI(prompt,4500);
     const np=parsed.pieces||[];S.pieces=np;S.insights=parsed.insights||null;
     const he={month:monthName,year:new Date().getFullYear(),themes:np.map(x=>x.theme),insights:parsed.insights||null,efemerides:parsed.efemerides||[],approved:false,approvedNotes:null,timestamp:Date.now()};
     const ua={...acc,history:[...(acc.history||[]),he],owner:S.userName};
